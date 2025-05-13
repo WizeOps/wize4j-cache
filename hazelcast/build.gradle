@@ -10,6 +10,11 @@ repositories {
 }
 
 dependencies {
+    compileOnly project(':core')
+
+    // Hazelcast for distributed caching
+    implementation 'com.hazelcast:hazelcast:5.5.0'
+
     testImplementation platform('org.junit:junit-bom:5.10.0')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }
