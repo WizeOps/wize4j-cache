@@ -1,0 +1,6 @@
+rootProject.name = 'wize4j-cache'
+include 'core'
+include 'redis'
+include 'hazelcast'
+include 'ehcache'
+include 'exemples'
