@@ -3,10 +3,12 @@ package net.wizeops.wize4j.cache.manager;
 import lombok.extern.slf4j.Slf4j;
 import net.wizeops.wize4j.cache.api.CacheProvider;
 import net.wizeops.wize4j.cache.config.CacheConfiguration;
+import net.wizeops.wize4j.cache.config.CacheProviderType;
 import net.wizeops.wize4j.cache.core.CacheStatistics;
 import net.wizeops.wize4j.cache.exceptions.CacheException;
 import net.wizeops.wize4j.cache.providers.memory.InMemoryCacheProvider;
 
+import java.lang.reflect.Constructor;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -19,6 +21,11 @@ public class CacheManager implements AutoCloseable {
     private final Map<String, CacheProvider> cacheProviders;
     private final CacheConfiguration config;
     private final ScheduledExecutorService cleanupExecutor;
+
+    // Constantes pour les noms de classes des providers externes
+    private static final String REDIS_PROVIDER_CLASS = "net.wizeops.wize4j.cache.providers.redis.RedisCacheProvider";
+    private static final String HAZELCAST_PROVIDER_CLASS = "net.wizeops.wize4j.cache.providers.hazelcast.HazelcastCacheProvider";
+    private static final String EHCACHE_PROVIDER_CLASS = "net.wizeops.wize4j.cache.providers.ehcache.EhCacheProvider";
 
     public CacheManager(CacheConfiguration config) {
         this.config = config;
@@ -179,9 +186,9 @@ public class CacheManager implements AutoCloseable {
         try {
             return switch (config.getProviderType()) {
                 case IN_MEMORY -> new InMemoryCacheProvider(config);
-                case REDIS -> createRedisProvider();
-                case HAZELCAST -> createHazelcastProvider();
-                case EHCACHE -> createEhCacheProvider();
+                case REDIS -> createProviderByReflection(REDIS_PROVIDER_CLASS);
+                case HAZELCAST -> createProviderByReflection(HAZELCAST_PROVIDER_CLASS);
+                case EHCACHE -> createProviderByReflection(EHCACHE_PROVIDER_CLASS);
                 case CUSTOM -> {
                     if (config.getCustomProvider() == null) {
                         throw new CacheException("Custom provider is null");
@@ -190,28 +197,24 @@ public class CacheManager implements AutoCloseable {
                 }
             };
         } catch (ClassNotFoundException e) {
-            throw new CacheException("Cache provider implementation not found", e);
+            throw new CacheException("Cache provider implementation not found: " + e.getMessage(), e);
         } catch (Exception e) {
-            throw new CacheException("Failed to create cache provider", e);
+            throw new CacheException("Failed to create cache provider: " + e.getMessage(), e);
         }
     }
 
-    private CacheProvider createRedisProvider() throws ClassNotFoundException {
-        // Vérification dynamique de la présence de la classe Redis
-        Class.forName("net.wizeops.wize4j.cache.providers.redis.RedisCacheProvider");
-        return new RedisCacheProvider(config);
-    }
-
-    private CacheProvider createHazelcastProvider() throws ClassNotFoundException {
-        // Vérification dynamique de la présence de la classe Hazelcast
-        Class.forName("net.wizeops.wize4j.cache.providers.hazelcast.HazelcastCacheProvider");
-        return new HazelcastCacheProvider(config);
-    }
-
-    private CacheProvider createEhCacheProvider() throws ClassNotFoundException {
-        // Vérification dynamique de la présence de la classe EhCache
-        Class.forName("net.wizeops.wize4j.cache.providers.ehcache.EhCacheProvider");
-        return new EhCacheProvider(config);
+    private CacheProvider createProviderByReflection(String className) throws Exception {
+        try {
+            Class<?> providerClass = Class.forName(className);
+            Constructor<?> constructor = providerClass.getConstructor(CacheConfiguration.class);
+            return (CacheProvider) constructor.newInstance(config);
+        } catch (ClassNotFoundException e) {
+            log.error("Provider class not found: {}. Make sure the corresponding module is added as a dependency.", className);
+            throw new ClassNotFoundException("Provider not available: " + className.substring(className.lastIndexOf('.') + 1));
+        } catch (Exception e) {
+            log.error("Failed to instantiate provider class: {}", className, e);
+            throw e;
+        }
     }
 
     private void validateInputs(String cacheName, String key) {
@@ -230,8 +233,3 @@ public class CacheManager implements AutoCloseable {
         }
     }
 }
-
-
-
-
-

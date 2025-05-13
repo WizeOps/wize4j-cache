@@ -1,7 +1,7 @@
 package net.wizeops.wize4j.cache.config;
 
-import lombok.Builder;
 import lombok.Data;
+import lombok.Builder;
 import net.wizeops.wize4j.cache.api.CacheProvider;
 
 import java.util.List;
@@ -51,8 +51,3 @@ public class CacheConfiguration {
     private boolean diskPersistence;
     private String diskStorePath;
 }
-
-
-
-
-
